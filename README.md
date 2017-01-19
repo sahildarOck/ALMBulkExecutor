@@ -1,5 +1,5 @@
 # ALMBulkExecutor
-Project to automate few redundant manual tasks in ALM
+Project to automate different redundant manual tasks in ALM
 
 An automation tool developed to minimize time taken to address administrative activities in ALM.
 
