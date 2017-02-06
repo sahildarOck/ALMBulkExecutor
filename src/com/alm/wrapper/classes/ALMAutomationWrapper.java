@@ -36,6 +36,7 @@ public class ALMAutomationWrapper {
 	private ActiveXComponent defectObject = null;
 
 	private final String DEFAULT_ACTUAL_RESULT = "As expected";
+	private final String DEFAULT_BLOCKED_FAILED_RESULT = "Blocked/Failed due to defect: ";
 
 	private String almURL;
 	private String userName;
@@ -166,7 +167,6 @@ public class ALMAutomationWrapper {
 
 			// Using the below variable as defect is getting linked before
 			// iterating for the first test case
-			boolean firstTestOfTestSet = true;
 
 			testExecWindow.updateLogLabelForExecution("Executing for each test case of the test set");
 			// wrapper.connect(userName, password, domain, project);
@@ -186,72 +186,68 @@ public class ALMAutomationWrapper {
 			// Fetching all the testCases in testCaseVariant
 			Variant testCasesVariant = testCaseFactory.invoke("NewList", "");
 
-			Dispatch tsTestsSet = testCasesVariant.getDispatch();
+			Dispatch tsTests = testCasesVariant.getDispatch();
 
-			System.out.println("Total no. of test cases: " + Dispatch.get(tsTestsSet, "count"));
+			System.out.println("Total no. of test cases: " + Dispatch.get(tsTests, "count"));
 
-			EnumVariant enumVariant = new EnumVariant(tsTestsSet);
+			EnumVariant enumVariantTSTests = new EnumVariant(tsTests);
 
 			Dispatch dispatchTSTest;
 			ActiveXComponent activeXTSTest = null;
 
-			// Setting up the defect object and validating if the defect id
-			// provided is valid by linking it with the first no run test case
-			// in the test set; no other way found.
+			// Setting up the defect object
 			if (almData.getTestCaseStatus() == StatusAs.BLOCKED && !almData.getDefectID().equals("")) {
-				boolean firstTestCaseWithNoRun = false;
 				defectObject = getDefectObject();
-				dispatchTSTest = enumVariant.nextElement().getDispatch();
-				activeXTSTest = new ActiveXComponent(dispatchTSTest);
-				while (enumVariant.hasMoreElements()) {
-					dispatchTSTest = enumVariant.nextElement().getDispatch();
-					activeXTSTest = new ActiveXComponent(dispatchTSTest);
-					if (activeXTSTest.getPropertyAsString("Status").equals("No Run")) {
-						firstTestCaseWithNoRun = true;
-						break;
-					}
-				}
-				if (firstTestCaseWithNoRun) {
-					ActiveXComponent bugLinkFactory = activeXTSTest.getPropertyAsComponent("BugLinkFactory");
-					try {
-						bugLinkFactory.invoke("AddItem", new Variant(defectObject));
-					} catch (ComFailException e) {
-						System.out.println("Inside catch...");
-						testExecWindow.updateLogLabelForExecution("Defect ID doesn't exist");
-						defectObject = null;
-					}
-				}
 			}
 
-			enumVariant = new EnumVariant(tsTestsSet);
+			enumVariantTSTests = new EnumVariant(tsTests);
 
 			// Iterating through the test set to change the execution status
-			while (enumVariant.hasMoreElements()) {
-				dispatchTSTest = enumVariant.nextElement().getDispatch();
+			while (enumVariantTSTests.hasMoreElements()) {
+				dispatchTSTest = enumVariantTSTests.nextElement().getDispatch();
 				activeXTSTest = new ActiveXComponent(dispatchTSTest);
+
+				// Condition 1: Unblocking the test cases
 				if (activeXTSTest.getPropertyAsString("Status").equals("Blocked")
 						&& almData.getTestCaseStatus() == StatusAs.NO_RUN) {
-					activeXTSTest.invoke("UnLockObject");
 					activeXTSTest.setProperty("Status", "No Run");
 					activeXTSTest.invoke("Post");
 					testExecWindow.updateLogLabelForExecution("Status updated for test case : " + testCaseNo++);
 					System.out.println(
 							"Status updated for Test Case name: " + activeXTSTest.getPropertyAsString("TestName"));
-				} else if (activeXTSTest.getPropertyAsString("Status").equals("No Run")
+				}
+
+				// Condition 2: Blocking and linking defects (if applicable) to
+				// test cases
+				else if (activeXTSTest.getPropertyAsString("Status").equals("No Run")
 						&& almData.getTestCaseStatus() == StatusAs.BLOCKED) {
-					activeXTSTest.invoke("UnLockObject");
-					activeXTSTest.setProperty("Status", "Blocked");
+					ActiveXComponent runFactory = activeXTSTest.getPropertyAsComponent("RunFactory");
+					ActiveXComponent run = runFactory.invokeGetComponent("AddItem", new Variant(createAndGetRunName()));
+					run.invoke("CopyDesignSteps");
+					ActiveXComponent stepFactory = run.invokeGetComponent("StepFactory");
+					Variant stepsVariant = stepFactory.invoke("NewList", "");
+					EnumVariant enumVariantSteps = new EnumVariant(stepsVariant.getDispatch());
+					updateStepStatusAndActualResult(StatusAs.BLOCKED,
+							new ActiveXComponent(enumVariantSteps.nextElement().getDispatch()),
+							DEFAULT_BLOCKED_FAILED_RESULT + almData.getDefectID());
+					updateRunStatus(StatusAs.BLOCKED, run);
+					run.invoke("Post");
 
 					// Defect linking if defect id is provided
-					if (defectObject != null && !firstTestOfTestSet) {
-						ActiveXComponent bugLinkFactory = activeXTSTest.getPropertyAsComponent("BugLinkFactory");
-						bugLinkFactory.invoke("AddItem", new Variant(defectObject));
+					if (defectObject != null) {
+						try {
+							ActiveXComponent bugLinkFactory = activeXTSTest.getPropertyAsComponent("BugLinkFactory");
+							bugLinkFactory.invoke("AddItem", new Variant(defectObject));
+						} catch (ComFailException e) {
+							System.err.println("Defect ID doesn't exist..!!");
+							testExecWindow.updateLogLabelForExecution("Defect ID doesn't exist..!!");
+							defectObject = null;
+						}
 					}
 					activeXTSTest.invoke("Post");
 					testExecWindow.updateLogLabelForExecution("Status updated for test case : " + testCaseNo++);
 					System.out.println(
 							"Status updated for Test Case name: " + activeXTSTest.getPropertyAsString("TestName"));
-					firstTestOfTestSet = false;
 				}
 			}
 			testExecWindow.updateLogLabelForExecution("Status updated for " + (testCaseNo - 1) + " test cases");
