@@ -1,4 +1,4 @@
-package com.alm.wrapper.classes;
+package com.alm.wrapper.classes.jacob;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -7,9 +7,11 @@ import java.util.TimeZone;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 
-import com.alm.wrapper.enums.AttachmentFor;
-import com.alm.wrapper.enums.ExecutionLevel;
-import com.alm.wrapper.exceptions.ExcelParsingException;
+import com.alm.wrapper.classes.ui.ALMTestExecutionWindow;
+import com.alm.wrapper.model.data.ALMData;
+import com.alm.wrapper.model.enums.AttachmentFor;
+import com.alm.wrapper.model.enums.ExecutionLevel;
+import com.alm.wrapper.model.exceptions.ExcelParsingException;
 import com.jacob.activeX.ActiveXComponent;
 import com.jacob.com.ComFailException;
 import com.jacob.com.Dispatch;
